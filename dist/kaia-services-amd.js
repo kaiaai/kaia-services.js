@@ -66,8 +66,8 @@ class Messaging {
         this._socket.on('connect_timeout', (timeout) => this._onConnectTimeout(timeout));
         this._socket.on('connect_error', (error) => this._onConnectError(error));
         this._socket.on('participants', (response) => this._onParticipants(response));
-        this._socket.on('join', (response) => this._onJoin(response));
-        this._socket.on('leave', (response) => this._onLeave(response));
+        this._socket.on('joined', (response) => this._onJoined(response));
+        this._socket.on('left', (response) => this._onLeft(response));
         this._socket.on('message', (message) => this._onMessage(message));
         this._socket.on('authResult', (response) => this._onAuthResult(response));
         this._socket.on('reconnecting', (attemptNumber) => this._onReconnecting(attemptNumber));
@@ -111,13 +111,13 @@ class Messaging {
         console.log('_onParticipants()');
         console.log(response);
     }
-    _onJoin(response) {
-        console.log('_onJoin()');
+    _onJoined(response) {
+        console.log('_onJoined()');
         console.log(response);
         // TODO resolve promise
     }
-    _onLeave(response) {
-        console.log('_onLeave()');
+    _onLeft(response) {
+        console.log('_onLeft()');
         console.log(response);
         // TODO resolve promise
     }

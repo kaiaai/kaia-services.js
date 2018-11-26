@@ -80,8 +80,8 @@ export class Messaging {
     this._socket.on('connect_timeout', (timeout: any) => this._onConnectTimeout(timeout) );
     this._socket.on('connect_error', (error: any) => this._onConnectError(error) );
     this._socket.on('participants', (response: object) => this._onParticipants(response) );
-    this._socket.on('join', (response: object) => this._onJoin(response) );
-    this._socket.on('leave', (response: object) => this._onLeave(response) );
+    this._socket.on('joined', (response: object) => this._onJoined(response) );
+    this._socket.on('left', (response: object) => this._onLeft(response) );
     this._socket.on('message', (message: object) => this._onMessage(message) );
     this._socket.on('authResult', (response: object) => this._onAuthResult(response) );
     this._socket.on('reconnecting', (attemptNumber: number) => this._onReconnecting(attemptNumber) );
@@ -133,14 +133,14 @@ export class Messaging {
     console.log(response);
   }
 
-  _onJoin(response: object) {
-    console.log('_onJoin()');
+  _onJoined(response: object) {
+    console.log('_onJoined()');
     console.log(response);
     // TODO resolve promise
   }
 
-  _onLeave(response: object) {
-    console.log('_onLeave()');
+  _onLeft(response: object) {
+    console.log('_onLeft()');
     console.log(response);
     // TODO resolve promise
   }

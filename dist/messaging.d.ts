@@ -36,8 +36,8 @@ export declare class Messaging {
     _onConnectTimeout(timeout: any): void;
     _onConnectError(error: any): void;
     _onParticipants(response: object): void;
-    _onJoin(response: object): void;
-    _onLeave(response: object): void;
+    _onJoined(response: object): void;
+    _onLeft(response: object): void;
     _onMessage(response: any): void;
     _onAuthResult(response: any): void;
     _onReconnecting(attemptNumber: number): void;
