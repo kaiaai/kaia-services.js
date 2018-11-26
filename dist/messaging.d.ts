@@ -20,15 +20,14 @@ export declare class Messaging {
     _initialized: boolean;
     static _created: boolean;
     static _id: string;
-    _closed: boolean;
     _listener: Function | null;
     _messageId: number;
     _id: string;
     _socket: any;
     _rooms: any;
     _latency: number | undefined;
+    _token: string;
     constructor();
-    postEvent(opRes: any): void;
     parseQuery(queryString: string): any;
     init(params: any): Promise<any>;
     _onConnect(): void;
@@ -40,7 +39,7 @@ export declare class Messaging {
     _onJoin(response: object): void;
     _onLeave(response: object): void;
     _onMessage(response: any): void;
-    _onAuthResult(response: object): void;
+    _onAuthResult(response: any): void;
     _onReconnecting(attemptNumber: number): void;
     _onReconnectError(error: any): void;
     _onReconnectFailed(error: any): void;
@@ -56,10 +55,11 @@ export declare class Messaging {
     _send(msgType: string, msg: any): void;
     send(msg: any, rooms: any): void;
     id(): string;
+    token(newToken: any): string;
     latency(): number | undefined;
-    _makePromise(res: any): Promise<any>;
-    isClosed(): boolean;
-    close(): void;
+    disconnected(): boolean;
+    _makePromise(): Promise<any>;
+    disconnect(): void;
     setEventListener(listener: Function | null): void;
 }
 export declare function createMessaging(params: any): Promise<Messaging>;

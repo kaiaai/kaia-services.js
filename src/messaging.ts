@@ -20,31 +20,22 @@ export class Messaging {
   _initialized: boolean = false;
   static _created: boolean = false;
   static _id: string;
-  _closed: boolean = false;
+  //_closed: boolean = false;
   _listener: Function | null = null;
   _messageId: number = 0;
   _id: string = '';
   _socket: any;
   _rooms: any;
   _latency: number | undefined;
+  _token: string = '';
+
+  // TODO keep promise for each request
 
   constructor() {
-
     if (Messaging._created)
       throw('Only one instance allowed');
 
     Messaging._created = true;
-  }
-
-  postEvent(opRes: any): void {
-    if (opRes.event === 'init') {
-      if (opRes.err && (this._rejectFunc != null))
-        this._rejectFunc(opRes.err);
-      else if (!opRes.err && (this._resolveFunc != null))
-        this._resolveFunc(opRes.event);
-    }
-    if (this._listener != null)
-      this._listener(opRes.err, opRes);
   }
 
   parseQuery(queryString: string) {
@@ -60,32 +51,27 @@ export class Messaging {
   init(params: any): Promise<any> {
     if (this._initialized)
       throw('Already initialized');
-    this._initialized = true;
 
     if (typeof params === 'undefined')
       throw 'io() required';
 
-    if (params.io)
-      this._socket = params.socket;
-    else
-      this._socket = params;
+    this._socket = params.io ? params.io : params;
 
-    if (params.eventListener)
-      this._listener = params.eventListener;
-
-    let token;
     if (params.token)
-      token = params.token;
+      this._token = params.token;
     else {
       const queryString = window.location.search.substring(1);
       const parsedQuery = this.parseQuery(queryString);
-      token = parsedQuery.token;
+      this._token = parsedQuery.token;
     }
 
-    if (!token)
+    if (!this._token)
       throw 'Missing token';
-    if (!this._socket)
-      throw 'Missing io()';
+    if (typeof params.rooms === 'string')
+      params.rooms = [params.rooms];
+
+    this._rooms = params.rooms ? params.rooms : undefined;
+    this._initialized = true;
 
     // TODO pass this?
     this._socket.on('connect', () => this._onConnect() );
@@ -105,33 +91,39 @@ export class Messaging {
     this._socket.on('pong', (latencyMs: number) => this._onPong(latencyMs) );
 
     this._socket.connect('/');
-
-    const res = {};
-    return this._makePromise(res);
+    return this._makePromise();
   }
 
   _onConnect() {
     console.log('_onConnect()');
-    // TODO parse token
-    // TODO send token
+    const message: any = { token: this._token };
+    if (this._rooms)
+      message.rooms = this._rooms;
+    this._send('authToken', message);
   }
 
   _onReconnect(attemptNumber: number) {
+    console.log('_onReconnect() attemptNumber=' + attemptNumber);
     if (this._listener)
       this._listener(false, { event: 'reconnect', attemptNumber: attemptNumber, err: false });
   }
 
   _onDisconnect(reason: any) {
+    console.log('_onDisconnect() reason=' + reason);
     if (this._listener)
       this._listener(false, { event: 'disconnect', reason: reason, err: false });
   }
 
   _onConnectTimeout(timeout: any) {
+    console.log('_onConnectTimeout() timeout=' + timeout);
     if (this._listener)
       this._listener(false, { event: 'connectTimeout', timeout: timeout, err: false });
   }
 
   _onConnectError(error: any) {
+    console.log('_onConnectError() error=' + error);
+    if (this._rejectFunc)
+      this._rejectFunc(error);
     if (this._listener)
       this._listener(true, { event: 'connectError', error: error, err: true });
   }
@@ -154,30 +146,44 @@ export class Messaging {
   }
 
   _onMessage(response: any) {
-    if (this._listener)
-      this._listener(false, { event: 'message', message: response.payload, err: false });
     console.log('_onMessage()');
     console.log(response);
+    if (this._listener) {
+      response.err = false;
+      response.event = 'message';
+      this._listener(false, response);
+    }
   }
 
-  _onAuthResult(response: object) {
+  _onAuthResult(response: any) {
     console.log('_onAuthResult()');
     console.log(response);
-    // TODO save new token
-    // TODO resolve promise
+    if (response.err) {
+      if (this._rejectFunc)
+        this._rejectFunc(response);
+      return;
+    }
+    this._id = response.clientId;
+    if (response.token)
+      this._token = response.token;
+    if (this._resolveFunc)
+      this._resolveFunc(this);
   }
 
   _onReconnecting(attemptNumber: number) {
+    console.log('_onReconnecting() attemptNumber=' + attemptNumber);
     if (this._listener)
       this._listener(false, { event: 'reconnecting', attemptNumber: attemptNumber, err: false });
   }
 
   _onReconnectError(error: any) {
+    console.log('_onReconnectError() error=' + error);
     if (this._listener)
       this._listener(true, { event: 'reconnectErro', err: error });
   }
 
   _onReconnectFailed(error: any) {
+    console.log('_onReconnectFailed() error=' + error);
     if (this._listener)
       this._listener(false, { event: 'reconenctFailed', err: error });
   }
@@ -186,6 +192,7 @@ export class Messaging {
   }
 
   _onPong(latencyMs: number) {
+    console.log('_onPong() latencyMs=' + latencyMs);
     //if (this._listener)
     //  this._listener(false, { event: 'pong', latency: latencyMs, err: false });
     this._latency = latencyMs;
@@ -211,8 +218,8 @@ export class Messaging {
   }
 
   join(params: any): Promise<any> {
-    if (this.isClosed())
-      throw('Messaging instance has been closed');
+    //if (this.isClosed())
+    //  throw('Messaging instance has been closed');
     if (!params)
       throw('Room name or array of room names required');
     if (typeof params === 'string' )
@@ -222,12 +229,12 @@ export class Messaging {
 
     // Send msg = {type:'join', roomIds:params}
     const res = {};
-    return this._makePromise(res);
+    return this._makePromise();
   }
 
   leave(params: any): Promise<any> {
-    if (this.isClosed())
-      throw('Messaging instance has been closed');
+    //if (this.isClosed())
+    //  throw('Messaging instance has been closed');
     if (!params)
       throw('Room ID or array of room IDs required');
     if (typeof params === 'string' )
@@ -235,29 +242,29 @@ export class Messaging {
 
     // Send msg = {type:'leave', roomIds:params}
     const res = {};
-    return this._makePromise(res);
+    return this._makePromise();
   }
 
   participants(params: any): Promise<any> {
-    if (this.isClosed())
-      throw('Messaging instance has been closed');
+    //if (this.isClosed())
+    //  throw('Messaging instance has been closed');
 
     // List room(s) participants
 
     // Send msg = {type:'participants'}
     const res = {};
-    return this._makePromise(res);
+    return this._makePromise();
   }
 
   // TODO not implemented
   rooms(params: any): Promise<any> {
-    if (this.isClosed())
-      throw('Messaging instance has been closed');
+    //if (this.isClosed())
+    //  throw('Messaging instance has been closed');
 
 
     // Send msg = {type:'listParticipants', roomIds:[]}}
     const res = {};
-    return this._makePromise(res);
+    return this._makePromise();
   }
 
   _send(msgType: string, msg: any) {
@@ -268,8 +275,8 @@ export class Messaging {
   }
 
   send(msg: any, rooms: any) {
-    if (this.isClosed())
-      throw('Messaging instance has been closed');
+    //if (this.isClosed())
+    //  throw('Messaging instance has been closed');
 
     if (typeof msg === 'undefined')
       throw 'Message required';
@@ -279,26 +286,37 @@ export class Messaging {
       rooms = [rooms];
     if (!Array.isArray(rooms))
       throw 'Rooms array required';
+    const message = { message: msg, rooms: rooms };
 
-    this._send(msg, rooms);
+    this._send('message', message);
   }
 
   id(): string {
-    if (this.isClosed())
-      throw('Messaging instance has been closed');
+    //if (this.isClosed())
+    //  throw('Messaging instance has been closed');
     return this._id;
   }
 
+  token(newToken: any): string {
+    //if (this.isClosed())
+    //  throw('Messaging instance has been closed');
+    let oldToken = this._token;
+    if (newToken)
+      this._token = newToken;
+    return oldToken;
+  }
+
   latency(): number | undefined {
-    if (this.isClosed())
-      throw('Messaging instance has been closed');
+    //if (this.isClosed())
+    //  throw('Messaging instance has been closed');
     return this._latency;
   }
 
-  _makePromise(res: any): Promise<any> {
-    if (res.err)
-      throw(res.err);
+  disconnected(): boolean {
+    return this._socket._disconnected;
+  }
 
+  _makePromise(): Promise<any> {
     let promise = new Promise<any>((resolve, reject) => {
       this._resolveFunc = resolve;
       this._rejectFunc = reject;
@@ -306,22 +324,24 @@ export class Messaging {
     return promise;
   }
 
-  isClosed(): boolean {
-    return this._closed;
+  disconnect(): void {
+    this._socket.disconnect();
   }
 
-  close(): void {
-    this._closed = true;
-
-    // work
-    const res = { err: false };
-    if (res.err)
-      throw(res.err);
-    this._clearCallback();
-    this._listener = null;
-  }
+  // TODO remove?
+  //close(): void {
+  //  this._closed = true;
+  //  // work
+  //  const res = { err: false };
+  //  if (res.err)
+  //    throw(res.err);
+  //  this._clearCallback();
+  //  this._listener = null;
+  //}
 
   setEventListener(listener: Function | null): void {
+    if (!(listener instanceof Function))
+      throw 'Function required';
     this._listener = listener;
   }
 }
@@ -332,12 +352,8 @@ export async function createMessaging(params: any) {
   if (!params.io)
     params = { io: params };
   const messaging = new Messaging();
+  if (params.eventListener)
+    messaging.setEventListener(params.eventListener);
   const res = await messaging.init(params);
-  if (typeof res === 'string')
-    throw(res);
-
-  // TODO send token
-  // TODO wait authResponse
-
   return messaging;
 }
