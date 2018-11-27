@@ -1,6 +1,6 @@
 {
     "name": "kaia-services.js",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "JS library for Kaia.ai services",
     "main": "./dist/kaia-services-cjs.js",
     "module": "./dist/kaia-services.mjs",
