@@ -21,7 +21,7 @@ export declare class Messaging {
     static _id: string;
     _listener: Function | null;
     _messageId: number;
-    _id: string;
+    _id: string | undefined;
     _socket: any;
     _latency: number | undefined;
     _token: string;
@@ -56,7 +56,7 @@ export declare class Messaging {
     rooms(): Promise<any>;
     _send(msgType: string, msg: any): number;
     send(msg: any, rooms: any): void;
-    id(): string;
+    id(): string | undefined;
     token(newToken: any): string;
     latency(): number | undefined;
     disconnected(): boolean;
@@ -64,4 +64,4 @@ export declare class Messaging {
     disconnect(): void;
     setEventListener(listener: Function | null): void;
 }
-export declare function createMessaging(params: any): Promise<Messaging>;
+export declare function createMessaging(params: any): Promise<any>;

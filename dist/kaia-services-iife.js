@@ -24,7 +24,7 @@ class Messaging {
         //_closed: boolean = false;
         this._listener = null;
         this._messageId = 0;
-        this._id = '';
+        this._id = undefined;
         this._token = '';
         if (Messaging._created)
             throw ('Only one instance allowed');
@@ -158,12 +158,17 @@ class Messaging {
     _onAuthResult(response) {
         console.log('_onAuthResult()');
         console.log(response);
-        if (!this._checkAndReject(response))
-            return;
-        this._id = response.clientId;
-        if (response.token)
-            this._token = response.token;
-        this._resolve(response.id, response);
+        if (response.err) {
+            this._id = undefined;
+            this._rooms = undefined;
+        }
+        else {
+            this._id = response.clientId;
+            if (response.token)
+                this._token = response.token;
+        }
+        if (this._checkAndReject(response))
+            this._resolve(response.id, this);
         this._callListener('authResult', response);
     }
     _onReconnecting(attemptNumber) {
@@ -198,7 +203,7 @@ class Messaging {
         if (!promise)
             return false;
         delete this._promises[id];
-        promise.resolve(result);
+        promise.reject(result);
         return true;
     }
     _rejectAll(result) {
@@ -310,8 +315,7 @@ async function createMessaging(params) {
     const messaging = new Messaging();
     if (params.eventListener)
         messaging.setEventListener(params.eventListener);
-    const res = await messaging.init(params);
-    return messaging;
+    return await messaging.init(params);
 }
 
 /**

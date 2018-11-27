@@ -22,7 +22,7 @@ export class Messaging {
   //_closed: boolean = false;
   _listener: Function | null = null;
   _messageId: number = 0;
-  _id: string = '';
+  _id: string | undefined = undefined;
   _socket: any;
   _latency: number | undefined;
   _token: string = '';
@@ -186,13 +186,18 @@ export class Messaging {
     console.log('_onAuthResult()');
     console.log(response);
 
-    if (!this._checkAndReject(response))
-      return;
 
-    this._id = response.clientId;
-    if (response.token)
-      this._token = response.token;
-    this._resolve(response.id, response);
+    if (response.err) {
+      this._id = undefined;
+      this._rooms = undefined;
+    } else {
+      this._id = response.clientId;
+      if (response.token)
+        this._token = response.token;
+    }
+
+    if (this._checkAndReject(response))
+      this._resolve(response.id, this);
     this._callListener('authResult', response);
   }
 
@@ -234,7 +239,7 @@ export class Messaging {
     if (!promise)
       return false;
     delete this._promises[id];
-    promise.resolve(result);
+    promise.reject(result);
     return true;
   }
 
@@ -320,7 +325,7 @@ export class Messaging {
     this._send('message', message);
   }
 
-  id(): string {
+  id(): string | undefined {
     //if (this.isClosed())
     //  throw('Messaging instance has been closed');
     return this._id;
@@ -371,6 +376,5 @@ export async function createMessaging(params: any) {
   const messaging = new Messaging();
   if (params.eventListener)
     messaging.setEventListener(params.eventListener);
-  const res = await messaging.init(params);
-  return messaging;
+  return await messaging.init(params);
 }
