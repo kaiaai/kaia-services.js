@@ -17,10 +17,8 @@ define(['exports'], function (exports) { 'use strict';
  * =============================================================================
  */
 class Messaging {
-    // TODO keep promise for each request
     constructor() {
-        this._resolveFunc = null;
-        this._rejectFunc = null;
+        this._promises = {};
         this._initialized = false;
         //_closed: boolean = false;
         this._listener = null;
@@ -66,6 +64,7 @@ class Messaging {
         this._socket.on('connect_timeout', (timeout) => this._onConnectTimeout(timeout));
         this._socket.on('connect_error', (error) => this._onConnectError(error));
         this._socket.on('participants', (response) => this._onParticipants(response));
+        this._socket.on('rooms', (response) => this._onRooms(response));
         this._socket.on('joined', (response) => this._onJoined(response));
         this._socket.on('left', (response) => this._onLeft(response));
         this._socket.on('message', (message) => this._onMessage(message));
@@ -73,160 +72,197 @@ class Messaging {
         this._socket.on('reconnecting', (attemptNumber) => this._onReconnecting(attemptNumber));
         this._socket.on('reconnect_error', (error) => this._onReconnectError(error));
         this._socket.on('reconnect_failed', (error) => this._onReconnectFailed(error));
-        this._socket.on('ping', () => this._onPing());
+        //this._socket.on('ping', () => this._onPing() );
         this._socket.on('pong', (latencyMs) => this._onPong(latencyMs));
         this._socket.connect('/');
-        return this._makePromise();
+        this._rejectAll('Initializing');
+        return this._makePromise(-1);
     }
     _onConnect() {
         console.log('_onConnect()');
         const message = { token: this._token };
         if (this._rooms)
             message.rooms = this._rooms;
-        this._send('authToken', message);
+        const id = this._send('authToken', message);
+        this._promises[id] = this._promises[-1];
+        delete this._promises[-1];
+        this._callListener('connect', {});
     }
     _onReconnect(attemptNumber) {
         console.log('_onReconnect() attemptNumber=' + attemptNumber);
-        if (this._listener)
-            this._listener(false, { event: 'reconnect', attemptNumber: attemptNumber, err: false });
+        this._callListener('reconnect', { attemptNumber: attemptNumber, err: false });
     }
     _onDisconnect(reason) {
         console.log('_onDisconnect() reason=' + reason);
-        if (this._listener)
-            this._listener(false, { event: 'disconnect', reason: reason, err: false });
+        this._rejectAll(reason);
+        this._callListener('disconnect', { reason: reason, err: false });
     }
     _onConnectTimeout(timeout) {
         console.log('_onConnectTimeout() timeout=' + timeout);
-        if (this._listener)
-            this._listener(false, { event: 'connectTimeout', timeout: timeout, err: false });
+        this._callListener('connectTimeout', { timeout: timeout, err: false });
     }
     _onConnectError(error) {
         console.log('_onConnectError() error=' + error);
-        if (this._rejectFunc)
-            this._rejectFunc(error);
-        if (this._listener)
-            this._listener(true, { event: 'connectError', error: error, err: true });
+        this._rejectAll('Connect error');
+        this._callListener('connectError', { err: error });
+    }
+    _checkAndReject(response) {
+        if (response.err) {
+            this._reject(response.id, response.err);
+            return false;
+        }
+        return true;
+    }
+    _resolveOrReject(response) {
+        if (this._checkAndReject(response))
+            this._resolve(response.id, response);
     }
     _onParticipants(response) {
         console.log('_onParticipants()');
         console.log(response);
+        this._resolveOrReject(response);
+        this._callListener('participants', response);
+    }
+    _onRooms(response) {
+        console.log('_onRooms()');
+        console.log(response);
+        this._resolveOrReject(response);
+        this._callListener('rooms', response);
+    }
+    _callListener(event, response) {
+        if (!this._listener)
+            return;
+        response.event = event;
+        this._listener(response.err, response);
     }
     _onJoined(response) {
         console.log('_onJoined()');
         console.log(response);
-        // TODO resolve promise
+        // TODO wait resolving until joining all requested rooms
+        this._resolveOrReject(response);
+        this._callListener('joined', response);
     }
     _onLeft(response) {
         console.log('_onLeft()');
         console.log(response);
-        // TODO resolve promise
+        this._resolveOrReject(response);
+        this._callListener('left', response);
     }
     _onMessage(response) {
         console.log('_onMessage()');
         console.log(response);
-        if (this._listener) {
-            response.err = false;
-            response.event = 'message';
-            this._listener(false, response);
-        }
+        response.err = false;
+        this._callListener('message', response);
     }
     _onAuthResult(response) {
         console.log('_onAuthResult()');
         console.log(response);
-        if (response.err) {
-            if (this._rejectFunc)
-                this._rejectFunc(response);
+        if (!this._checkAndReject(response))
             return;
-        }
         this._id = response.clientId;
         if (response.token)
             this._token = response.token;
-        if (this._resolveFunc)
-            this._resolveFunc(this);
+        this._resolve(response.id, response);
+        this._callListener('authResult', response);
     }
     _onReconnecting(attemptNumber) {
         console.log('_onReconnecting() attemptNumber=' + attemptNumber);
-        if (this._listener)
-            this._listener(false, { event: 'reconnecting', attemptNumber: attemptNumber, err: false });
+        this._callListener('reconnecting', { attemptNumber: attemptNumber, err: false });
     }
     _onReconnectError(error) {
         console.log('_onReconnectError() error=' + error);
-        if (this._listener)
-            this._listener(true, { event: 'reconnectErro', err: error });
+        this._callListener('reconnectError', { err: error });
     }
     _onReconnectFailed(error) {
         console.log('_onReconnectFailed() error=' + error);
-        if (this._listener)
-            this._listener(false, { event: 'reconenctFailed', err: error });
+        this._callListener('reconnectFailed', { err: error });
     }
-    _onPing() {
-    }
+    //_onPing() {
+    //}
     _onPong(latencyMs) {
         console.log('_onPong() latencyMs=' + latencyMs);
-        //if (this._listener)
-        //  this._listener(false, { event: 'pong', latency: latencyMs, err: false });
         this._latency = latencyMs;
+        this._callListener('pong', { latency: latencyMs, err: false });
     }
-    _clearCallback() {
-        this._resolveFunc = null;
-        this._rejectFunc = null;
+    _resolve(id, result) {
+        const promise = this._promises[id];
+        if (!promise)
+            return false;
+        delete this._promises[id];
+        promise.resolve(result);
+        return true;
     }
-    _resolve(res) {
-        let cb = this._resolveFunc;
-        this._clearCallback();
-        if (cb !== null)
-            cb(res);
+    _reject(id, result) {
+        const promise = this._promises[id];
+        if (!promise)
+            return false;
+        delete this._promises[id];
+        promise.resolve(result);
+        return true;
     }
-    _reject(err) {
-        let cb = this._rejectFunc;
-        this._clearCallback();
-        if (cb !== null)
-            cb(err);
+    _rejectAll(result) {
+        const ids = Object.keys(this._promises);
+        ids.map(id => this._reject(id, result));
     }
-    join(params) {
-        //if (this.isClosed())
-        //  throw('Messaging instance has been closed');
-        if (!params)
-            throw ('Room name or array of room names required');
-        if (typeof params === 'string')
-            params = [params];
-        this._rooms = params;
-        return this._makePromise();
+    join(rooms) {
+        if (this.disconnected())
+            throw 'Disconnected';
+        if (!rooms)
+            throw 'Room name(s) required';
+        if (typeof rooms === 'string')
+            rooms = [rooms];
+        const message = { rooms: rooms };
+        const id = this._send('rooms', message);
+        return this._makePromise(id);
     }
-    leave(params) {
-        //if (this.isClosed())
-        //  throw('Messaging instance has been closed');
-        if (!params)
-            throw ('Room ID or array of room IDs required');
-        if (typeof params === 'string')
-            params = [params];
-        return this._makePromise();
+    leave(rooms) {
+        if (this.disconnected())
+            throw 'Disconnected';
+        const message = {};
+        if (typeof rooms === 'string')
+            rooms = [rooms];
+        if (rooms)
+            message.rooms = rooms;
+        const id = this._send('leave', message);
+        return this._makePromise(id);
     }
-    participants(params) {
-        return this._makePromise();
+    participants(rooms) {
+        if (this.disconnected())
+            throw 'Disconnected';
+        // List rooms client is connected to and their participants
+        const message = {};
+        if (typeof rooms === 'string')
+            rooms = [rooms];
+        if (rooms)
+            message.rooms = rooms;
+        const id = this._send('participants', message);
+        return this._makePromise(id);
     }
-    // TODO not implemented
-    rooms(params) {
-        return this._makePromise();
+    rooms() {
+        if (this.disconnected())
+            throw 'Disconnected';
+        // List rooms client is connected to
+        const message = {};
+        const id = this._send('rooms', message);
+        return this._makePromise(id);
     }
     _send(msgType, msg) {
         // Increment message ID
         this._messageId = this._messageId + 1;
         msg.id = this._messageId;
         this._socket.emit(msgType, msg);
+        return msg.id;
     }
     send(msg, rooms) {
-        //if (this.isClosed())
-        //  throw('Messaging instance has been closed');
+        if (this.disconnected())
+            throw 'Disconnected';
         if (typeof msg === 'undefined')
             throw 'Message required';
-        if (typeof rooms === 'undefined')
-            rooms = this._rooms;
         if (typeof rooms === 'string')
             rooms = [rooms];
-        if (!Array.isArray(rooms))
-            throw 'Rooms array required';
-        const message = { message: msg, rooms: rooms };
+        const message = { message: msg };
+        if (rooms)
+            message.rooms = rooms;
         this._send('message', message);
     }
     id() {
@@ -235,41 +271,29 @@ class Messaging {
         return this._id;
     }
     token(newToken) {
-        //if (this.isClosed())
-        //  throw('Messaging instance has been closed');
         let oldToken = this._token;
         if (newToken)
             this._token = newToken;
         return oldToken;
     }
     latency() {
-        //if (this.isClosed())
-        //  throw('Messaging instance has been closed');
+        if (this.disconnected())
+            throw 'Disconnected';
         return this._latency;
     }
     disconnected() {
         return this._socket._disconnected;
     }
-    _makePromise() {
+    _makePromise(id) {
         let promise = new Promise((resolve, reject) => {
-            this._resolveFunc = resolve;
-            this._rejectFunc = reject;
+            const funcs = { resolve: resolve, reject: reject };
+            this._promises[id] = funcs;
         });
         return promise;
     }
     disconnect() {
         this._socket.disconnect();
     }
-    // TODO remove?
-    //close(): void {
-    //  this._closed = true;
-    //  // work
-    //  const res = { err: false };
-    //  if (res.err)
-    //    throw(res.err);
-    //  this._clearCallback();
-    //  this._listener = null;
-    //}
     setEventListener(listener) {
         if (!(listener instanceof Function))
             throw 'Function required';

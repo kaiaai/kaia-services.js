@@ -15,8 +15,7 @@
  * =============================================================================
  */
 export declare class Messaging {
-    _resolveFunc: Function | null;
-    _rejectFunc: Function | null;
+    _promises: any;
     _initialized: boolean;
     static _created: boolean;
     static _id: string;
@@ -24,9 +23,9 @@ export declare class Messaging {
     _messageId: number;
     _id: string;
     _socket: any;
-    _rooms: any;
     _latency: number | undefined;
     _token: string;
+    _rooms: any;
     constructor();
     parseQuery(queryString: string): any;
     init(params: any): Promise<any>;
@@ -35,30 +34,33 @@ export declare class Messaging {
     _onDisconnect(reason: any): void;
     _onConnectTimeout(timeout: any): void;
     _onConnectError(error: any): void;
-    _onParticipants(response: object): void;
-    _onJoined(response: object): void;
-    _onLeft(response: object): void;
+    _checkAndReject(response: any): boolean;
+    _resolveOrReject(response: any): void;
+    _onParticipants(response: any): void;
+    _onRooms(response: any): void;
+    _callListener(event: string, response: any): void;
+    _onJoined(response: any): void;
+    _onLeft(response: any): void;
     _onMessage(response: any): void;
     _onAuthResult(response: any): void;
     _onReconnecting(attemptNumber: number): void;
     _onReconnectError(error: any): void;
     _onReconnectFailed(error: any): void;
-    _onPing(): void;
     _onPong(latencyMs: number): void;
-    _clearCallback(): void;
-    _resolve(res: any): void;
-    _reject(err: any): void;
-    join(params: any): Promise<any>;
-    leave(params: any): Promise<any>;
-    participants(params: any): Promise<any>;
-    rooms(params: any): Promise<any>;
-    _send(msgType: string, msg: any): void;
+    _resolve(id: number, result: any): boolean;
+    _reject(id: string, result: any): boolean;
+    _rejectAll(result: any): void;
+    join(rooms: any): Promise<any>;
+    leave(rooms: any): Promise<any>;
+    participants(rooms: any): Promise<any>;
+    rooms(): Promise<any>;
+    _send(msgType: string, msg: any): number;
     send(msg: any, rooms: any): void;
     id(): string;
     token(newToken: any): string;
     latency(): number | undefined;
     disconnected(): boolean;
-    _makePromise(): Promise<any>;
+    _makePromise(id: number): Promise<any>;
     disconnect(): void;
     setEventListener(listener: Function | null): void;
 }
