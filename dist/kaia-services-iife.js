@@ -20,15 +20,12 @@ var kaiaJsServices = (function (exports) {
 class Messaging {
     constructor() {
         this._promises = {};
-        this._initialized = false;
         //_closed: boolean = false;
         this._listener = null;
         this._messageId = 0;
         this._id = undefined;
         this._token = '';
-        if (Messaging._created)
-            throw ('Only one instance allowed');
-        Messaging._created = true;
+        this._debug = true;
     }
     parseQuery(queryString) {
         const query = {};
@@ -39,12 +36,17 @@ class Messaging {
         }
         return query;
     }
-    init(params) {
-        if (this._initialized)
-            throw ('Already initialized');
-        if (typeof params === 'undefined')
-            throw 'io() required';
-        this._socket = params.io ? params.io : params;
+    async init(params) {
+        if (Messaging._created)
+            return Promise.reject('Only one instance allowed');
+        if (typeof params !== 'object')
+            return Promise.reject('io() required');
+        if (!params.io)
+            params = { io: params };
+        if (typeof params.eventListener === 'function')
+            this.setEventListener(params.eventListener);
+        this.debug(params.debug);
+        this._socket = params.io;
         if (params.token)
             this._token = params.token;
         else {
@@ -53,12 +55,11 @@ class Messaging {
             this._token = parsedQuery.token;
         }
         if (!this._token)
-            throw 'Missing token';
+            return Promise.reject('Missing token');
         if (typeof params.rooms === 'string')
             params.rooms = [params.rooms];
+        Messaging._created = true;
         this._rooms = params.rooms ? params.rooms : undefined;
-        this._initialized = true;
-        // TODO pass this?
         this._socket.on('connect', () => this._onConnect());
         this._socket.on('reconnect', (attemptNumber) => this._onReconnect(attemptNumber));
         this._socket.on('disconnect', (reason) => this._onDisconnect(reason));
@@ -79,8 +80,14 @@ class Messaging {
         this._rejectAll('Initializing');
         return this._makePromise(-1);
     }
+    debug(enable) {
+        if (typeof enable === 'boolean')
+            this._debug = enable;
+        return this._debug;
+    }
     _onConnect() {
-        console.log('_onConnect()');
+        if (this._debug)
+            console.log('_onConnect()');
         const message = { token: this._token };
         if (this._rooms)
             message.rooms = this._rooms;
@@ -90,20 +97,24 @@ class Messaging {
         this._callListener('connect', {});
     }
     _onReconnect(attemptNumber) {
-        console.log('_onReconnect() attemptNumber=' + attemptNumber);
+        if (this._debug)
+            console.log('_onReconnect() attemptNumber=' + attemptNumber);
         this._callListener('reconnect', { attemptNumber: attemptNumber, err: false });
     }
     _onDisconnect(reason) {
-        console.log('_onDisconnect() reason=' + reason);
+        if (this._debug)
+            console.log('_onDisconnect() reason=' + reason);
         this._rejectAll(reason);
         this._callListener('disconnect', { reason: reason, err: false });
     }
     _onConnectTimeout(timeout) {
-        console.log('_onConnectTimeout() timeout=' + timeout);
+        if (this._debug)
+            console.log('_onConnectTimeout() timeout=' + timeout);
         this._callListener('connectTimeout', { timeout: timeout, err: false });
     }
     _onConnectError(error) {
-        console.log('_onConnectError() error=' + error);
+        if (this._debug)
+            console.log('_onConnectError() error=' + error);
         this._rejectAll('Connect error');
         this._callListener('connectError', { err: error });
     }
@@ -119,14 +130,18 @@ class Messaging {
             this._resolve(response.id, response);
     }
     _onParticipants(response) {
-        console.log('_onParticipants()');
-        console.log(response);
+        if (this._debug) {
+            console.log('_onParticipants()');
+            console.log(response);
+        }
         this._resolveOrReject(response);
         this._callListener('participants', response);
     }
     _onRooms(response) {
-        console.log('_onRooms()');
-        console.log(response);
+        if (this._debug) {
+            console.log('_onRooms()');
+            console.log(response);
+        }
         this._resolveOrReject(response);
         this._callListener('rooms', response);
     }
@@ -137,27 +152,35 @@ class Messaging {
         this._listener(response.err, response);
     }
     _onJoined(response) {
-        console.log('_onJoined()');
-        console.log(response);
+        if (this._debug) {
+            console.log('_onJoined()');
+            console.log(response);
+        }
         // TODO wait resolving until joining all requested rooms
         this._resolveOrReject(response);
         this._callListener('joined', response);
     }
     _onLeft(response) {
-        console.log('_onLeft()');
-        console.log(response);
+        if (this._debug) {
+            console.log('_onLeft()');
+            console.log(response);
+        }
         this._resolveOrReject(response);
         this._callListener('left', response);
     }
     _onMessage(response) {
-        console.log('_onMessage()');
-        console.log(response);
+        if (this._debug) {
+            console.log('_onMessage()');
+            console.log(response);
+        }
         response.err = false;
         this._callListener('message', response);
     }
     _onAuthResult(response) {
-        console.log('_onAuthResult()');
-        console.log(response);
+        if (this._debug) {
+            console.log('_onAuthResult()');
+            console.log(response);
+        }
         if (response.err) {
             this._id = undefined;
             this._rooms = undefined;
@@ -172,21 +195,25 @@ class Messaging {
         this._callListener('authResult', response);
     }
     _onReconnecting(attemptNumber) {
-        console.log('_onReconnecting() attemptNumber=' + attemptNumber);
+        if (this._debug)
+            console.log('_onReconnecting() attemptNumber=' + attemptNumber);
         this._callListener('reconnecting', { attemptNumber: attemptNumber, err: false });
     }
     _onReconnectError(error) {
-        console.log('_onReconnectError() error=' + error);
+        if (this._debug)
+            console.log('_onReconnectError() error=' + error);
         this._callListener('reconnectError', { err: error });
     }
     _onReconnectFailed(error) {
-        console.log('_onReconnectFailed() error=' + error);
+        if (this._debug)
+            console.log('_onReconnectFailed() error=' + error);
         this._callListener('reconnectFailed', { err: error });
     }
     //_onPing() {
     //}
     _onPong(latencyMs) {
-        console.log('_onPong() latencyMs=' + latencyMs);
+        if (this._debug)
+            console.log('_onPong() latencyMs=' + latencyMs);
         this._latency = latencyMs;
         this._callListener('pong', { latency: latencyMs, err: false });
     }
@@ -210,7 +237,7 @@ class Messaging {
         const ids = Object.keys(this._promises);
         ids.map(id => this._reject(id, result));
     }
-    join(rooms) {
+    async join(rooms) {
         if (this.disconnected())
             throw 'Disconnected';
         if (!rooms)
@@ -221,7 +248,7 @@ class Messaging {
         const id = this._send('rooms', message);
         return this._makePromise(id);
     }
-    leave(rooms) {
+    async leave(rooms) {
         if (this.disconnected())
             throw 'Disconnected';
         const message = {};
@@ -232,7 +259,7 @@ class Messaging {
         const id = this._send('leave', message);
         return this._makePromise(id);
     }
-    participants(rooms) {
+    async participants(rooms) {
         if (this.disconnected())
             throw 'Disconnected';
         // List rooms client is connected to and their participants
@@ -244,7 +271,7 @@ class Messaging {
         const id = this._send('participants', message);
         return this._makePromise(id);
     }
-    rooms() {
+    async rooms() {
         if (this.disconnected())
             throw 'Disconnected';
         // List rooms client is connected to
@@ -272,8 +299,6 @@ class Messaging {
         this._send('message', message);
     }
     id() {
-        //if (this.isClosed())
-        //  throw('Messaging instance has been closed');
         return this._id;
     }
     token(newToken) {
@@ -308,14 +333,8 @@ class Messaging {
 }
 Messaging._created = false;
 async function createMessaging(params) {
-    if (typeof params !== 'object')
-        throw 'io() required';
-    if (!params.io)
-        params = { io: params };
     const messaging = new Messaging();
-    if (params.eventListener)
-        messaging.setEventListener(params.eventListener);
-    return await messaging.init(params);
+    return messaging.init(params);
 }
 
 /**

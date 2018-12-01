@@ -16,7 +16,6 @@
  */
 export declare class Messaging {
     _promises: any;
-    _initialized: boolean;
     static _created: boolean;
     static _id: string;
     _listener: Function | null;
@@ -26,9 +25,11 @@ export declare class Messaging {
     _latency: number | undefined;
     _token: string;
     _rooms: any;
+    _debug: boolean;
     constructor();
     parseQuery(queryString: string): any;
     init(params: any): Promise<any>;
+    debug(enable: any): boolean;
     _onConnect(): void;
     _onReconnect(attemptNumber: number): void;
     _onDisconnect(reason: any): void;

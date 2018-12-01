@@ -16,7 +16,6 @@
  */
 export class Messaging {
   _promises: any = {};
-  _initialized: boolean = false;
   static _created: boolean = false;
   static _id: string;
   //_closed: boolean = false;
@@ -27,12 +26,9 @@ export class Messaging {
   _latency: number | undefined;
   _token: string = '';
   _rooms: any;
+  _debug: boolean = true;
 
   constructor() {
-    if (Messaging._created)
-      throw('Only one instance allowed');
-
-    Messaging._created = true;
   }
 
   parseQuery(queryString: string) {
@@ -45,14 +41,19 @@ export class Messaging {
     return query;
   }
 
-  init(params: any): Promise<any> {
-    if (this._initialized)
-      throw('Already initialized');
+  async init(params: any): Promise<any> {
+    if (Messaging._created)
+      return Promise.reject('Only one instance allowed');
 
-    if (typeof params === 'undefined')
-      throw 'io() required';
+    if (typeof params !== 'object')
+      return Promise.reject('io() required');
+    if (!params.io)
+      params = { io: params };
+    if (typeof params.eventListener === 'function')
+      this.setEventListener(params.eventListener);
+    this.debug(params.debug);
 
-    this._socket = params.io ? params.io : params;
+    this._socket = params.io;
 
     if (params.token)
       this._token = params.token;
@@ -63,14 +64,13 @@ export class Messaging {
     }
 
     if (!this._token)
-      throw 'Missing token';
+      return Promise.reject('Missing token');
     if (typeof params.rooms === 'string')
       params.rooms = [params.rooms];
 
+    Messaging._created = true;
     this._rooms = params.rooms ? params.rooms : undefined;
-    this._initialized = true;
 
-    // TODO pass this?
     this._socket.on('connect', () => this._onConnect() );
     this._socket.on('reconnect', (attemptNumber: number) => this._onReconnect(attemptNumber) );
     this._socket.on('disconnect', (reason: any) => this._onDisconnect(reason) );
@@ -93,8 +93,15 @@ export class Messaging {
     return this._makePromise(-1);
   }
 
+  debug(enable: any) {
+    if (typeof enable === 'boolean')
+      this._debug = enable;
+    return this._debug;
+  }
+
   _onConnect() {
-    console.log('_onConnect()');
+    if (this._debug)
+      console.log('_onConnect()');
     const message: any = { token: this._token };
     if (this._rooms)
       message.rooms = this._rooms;
@@ -105,23 +112,27 @@ export class Messaging {
   }
 
   _onReconnect(attemptNumber: number) {
-    console.log('_onReconnect() attemptNumber=' + attemptNumber);
+    if (this._debug)
+      console.log('_onReconnect() attemptNumber=' + attemptNumber);
     this._callListener('reconnect', { attemptNumber: attemptNumber, err: false });
   }
 
   _onDisconnect(reason: any) {
-    console.log('_onDisconnect() reason=' + reason);
+    if (this._debug)
+      console.log('_onDisconnect() reason=' + reason);
     this._rejectAll(reason);
     this._callListener('disconnect', { reason: reason, err: false });
   }
 
   _onConnectTimeout(timeout: any) {
-    console.log('_onConnectTimeout() timeout=' + timeout);
+    if (this._debug)
+      console.log('_onConnectTimeout() timeout=' + timeout);
     this._callListener('connectTimeout', { timeout: timeout, err: false });
   }
 
   _onConnectError(error: any) {
-    console.log('_onConnectError() error=' + error);
+    if (this._debug)
+      console.log('_onConnectError() error=' + error);
     this._rejectAll('Connect error');
     this._callListener('connectError', { err: error });
   }
@@ -140,15 +151,19 @@ export class Messaging {
   }
 
   _onParticipants(response: any) {
-    console.log('_onParticipants()');
-    console.log(response);
+    if (this._debug) {
+      console.log('_onParticipants()');
+      console.log(response);
+    }
     this._resolveOrReject(response);
     this._callListener('participants', response);
   }
 
   _onRooms(response: any) {
-    console.log('_onRooms()');
-    console.log(response);
+    if (this._debug) {
+      console.log('_onRooms()');
+      console.log(response);
+    }
     this._resolveOrReject(response);
     this._callListener('rooms', response);
   }
@@ -161,31 +176,38 @@ export class Messaging {
    }
 
   _onJoined(response: any) {
-    console.log('_onJoined()');
-    console.log(response);
+    if (this._debug) {
+      console.log('_onJoined()');
+      console.log(response);
+    }
     // TODO wait resolving until joining all requested rooms
     this._resolveOrReject(response);
     this._callListener('joined', response);
   }
 
   _onLeft(response: any) {
-    console.log('_onLeft()');
-    console.log(response);
+    if (this._debug) {
+      console.log('_onLeft()');
+      console.log(response);
+    }
     this._resolveOrReject(response);
     this._callListener('left', response);
   }
 
   _onMessage(response: any) {
-    console.log('_onMessage()');
-    console.log(response);
+    if (this._debug) {
+      console.log('_onMessage()');
+      console.log(response);
+    }
     response.err = false;
     this._callListener('message', response);
   }
 
   _onAuthResult(response: any) {
-    console.log('_onAuthResult()');
-    console.log(response);
-
+    if (this._debug) {
+      console.log('_onAuthResult()');
+      console.log(response);
+    }
 
     if (response.err) {
       this._id = undefined;
@@ -202,17 +224,20 @@ export class Messaging {
   }
 
   _onReconnecting(attemptNumber: number) {
-    console.log('_onReconnecting() attemptNumber=' + attemptNumber);
+    if (this._debug)
+      console.log('_onReconnecting() attemptNumber=' + attemptNumber);
     this._callListener('reconnecting', { attemptNumber: attemptNumber, err: false });
   }
 
   _onReconnectError(error: any) {
-    console.log('_onReconnectError() error=' + error);
+    if (this._debug)
+      console.log('_onReconnectError() error=' + error);
     this._callListener('reconnectError', { err: error });
   }
 
   _onReconnectFailed(error: any) {
-    console.log('_onReconnectFailed() error=' + error);
+    if (this._debug)
+      console.log('_onReconnectFailed() error=' + error);
     this._callListener('reconnectFailed', { err: error });
   }
 
@@ -220,7 +245,8 @@ export class Messaging {
   //}
 
   _onPong(latencyMs: number) {
-    console.log('_onPong() latencyMs=' + latencyMs);
+    if (this._debug)
+      console.log('_onPong() latencyMs=' + latencyMs);
     this._latency = latencyMs;
     this._callListener('pong', { latency: latencyMs, err: false });
   }
@@ -248,7 +274,7 @@ export class Messaging {
     ids.map(id => this._reject(id, result));
   }
 
-  join(rooms: any): Promise<any> {
+  async join(rooms: any): Promise<any> {
     if (this.disconnected())
       throw 'Disconnected';
     if (!rooms)
@@ -261,7 +287,7 @@ export class Messaging {
     return this._makePromise(id);
   }
 
-  leave(rooms: any): Promise<any> {
+  async leave(rooms: any): Promise<any> {
     if (this.disconnected())
       throw 'Disconnected';
 
@@ -275,7 +301,7 @@ export class Messaging {
     return this._makePromise(id);
   }
 
-  participants(rooms: any): Promise<any> {
+  async participants(rooms: any): Promise<any> {
     if (this.disconnected())
       throw 'Disconnected';
 
@@ -291,7 +317,7 @@ export class Messaging {
     return this._makePromise(id);
   }
 
-  rooms(): Promise<any> {
+  async rooms(): Promise<any> {
     if (this.disconnected())
       throw 'Disconnected';
 
@@ -326,8 +352,6 @@ export class Messaging {
   }
 
   id(): string | undefined {
-    //if (this.isClosed())
-    //  throw('Messaging instance has been closed');
     return this._id;
   }
 
@@ -369,12 +393,6 @@ export class Messaging {
 }
 
 export async function createMessaging(params: any) {
-  if (typeof params !== 'object')
-    throw 'io() required';
-  if (!params.io)
-    params = { io: params };
   const messaging = new Messaging();
-  if (params.eventListener)
-    messaging.setEventListener(params.eventListener);
-  return await messaging.init(params);
+  return messaging.init(params);
 }
