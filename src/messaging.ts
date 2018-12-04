@@ -108,7 +108,7 @@ export class Messaging {
     const id = this._send('authToken', message);
     this._promises[id] = this._promises[-1];
     delete this._promises[-1];
-    this._callListener('connect', {});
+    this._callListener('connect', { err: false });
   }
 
   _onReconnect(attemptNumber: number) {
