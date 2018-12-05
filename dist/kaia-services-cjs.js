@@ -27,6 +27,9 @@ class Messaging {
         this._id = undefined;
         this._token = '';
         this._debug = true;
+        if (Messaging.messaging)
+            throw 'Only one instance allowed';
+        Messaging.messaging = this;
     }
     parseQuery(queryString) {
         const query = {};
@@ -38,8 +41,6 @@ class Messaging {
         return query;
     }
     async init(params) {
-        if (Messaging._created)
-            return Promise.reject('Only one instance allowed');
         if (typeof params !== 'object')
             return Promise.reject('io() required');
         if (!params.io)
@@ -59,7 +60,6 @@ class Messaging {
             return Promise.reject('Missing token');
         if (typeof params.rooms === 'string')
             params.rooms = [params.rooms];
-        Messaging._created = true;
         this._rooms = params.rooms ? params.rooms : undefined;
         this._socket.on('connect', () => this._onConnect());
         this._socket.on('reconnect', (attemptNumber) => this._onReconnect(attemptNumber));
@@ -332,10 +332,11 @@ class Messaging {
         this._listener = listener;
     }
 }
-Messaging._created = false;
 async function createMessaging(params) {
-    const messaging = new Messaging();
-    return messaging.init(params);
+    if (Messaging.messaging)
+        return Promise.resolve(Messaging.messaging);
+    Messaging.messaging = new Messaging();
+    return Messaging.messaging.init(params);
 }
 
 /**

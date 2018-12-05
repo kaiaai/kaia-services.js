@@ -16,7 +16,6 @@
  */
 export class Messaging {
   _promises: any = {};
-  static _created: boolean = false;
   static _id: string;
   //_closed: boolean = false;
   _listener: Function | null = null;
@@ -27,8 +26,12 @@ export class Messaging {
   _token: string = '';
   _rooms: any;
   _debug: boolean = true;
+  static messaging: Messaging | undefined;
 
   constructor() {
+    if (Messaging.messaging)
+      throw 'Only one instance allowed';
+    Messaging.messaging = this;
   }
 
   parseQuery(queryString: string) {
@@ -42,9 +45,6 @@ export class Messaging {
   }
 
   async init(params: any): Promise<any> {
-    if (Messaging._created)
-      return Promise.reject('Only one instance allowed');
-
     if (typeof params !== 'object')
       return Promise.reject('io() required');
     if (!params.io)
@@ -68,7 +68,6 @@ export class Messaging {
     if (typeof params.rooms === 'string')
       params.rooms = [params.rooms];
 
-    Messaging._created = true;
     this._rooms = params.rooms ? params.rooms : undefined;
 
     this._socket.on('connect', () => this._onConnect() );
@@ -393,6 +392,8 @@ export class Messaging {
 }
 
 export async function createMessaging(params: any) {
-  const messaging = new Messaging();
-  return messaging.init(params);
+  if (Messaging.messaging)
+    return Promise.resolve(Messaging.messaging);
+  Messaging.messaging = new Messaging();
+  return Messaging.messaging.init(params);
 }

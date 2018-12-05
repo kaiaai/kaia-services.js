@@ -16,7 +16,6 @@
  */
 export declare class Messaging {
     _promises: any;
-    static _created: boolean;
     static _id: string;
     _listener: Function | null;
     _messageId: number;
@@ -26,6 +25,7 @@ export declare class Messaging {
     _token: string;
     _rooms: any;
     _debug: boolean;
+    static messaging: Messaging | undefined;
     constructor();
     parseQuery(queryString: string): any;
     init(params: any): Promise<any>;
