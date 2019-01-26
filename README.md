@@ -1,6 +1,5 @@
 
 [![](https://img.shields.io/npm/v/kaia-services.js.svg)](https://www.npmjs.com/package/kaia-services.js)
-[![](https://img.shields.io/npm/dw/kaia-services.js.svg)](https://www.npmjs.com/package/kaia-services.js)
 [![](https://img.shields.io/npm/l/kaia-services.js.svg)](https://www.npmjs.com/package/kaia-services.js)
 
 # Kaia-services.js
